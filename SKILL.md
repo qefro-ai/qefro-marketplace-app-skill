@@ -76,8 +76,8 @@ Load these when you need detailed technical information:
 ## Source of truth priority
 
 1. Current Qefro runtime/platform implementation (Rust crates in `ai-customer-support/`)
-2. Current Marketplace App metadata/schema contracts (`qefro-marketplace-apps/tests/test_packages.py`)
-3. Existing production Marketplace Apps (`qefro-marketplace-apps/apps/`)
+2. Current Marketplace App metadata/schema contracts ([test_packages.py](https://github.com/qefro-ai/qefro-marketplace-apps/blob/main/tests/test_packages.py))
+3. Existing production Marketplace Apps ([apps/](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps))
 4. Existing tests
 5. Documentation
 6. Your own assumptions (last resort -- report if you must use this)
@@ -86,7 +86,10 @@ If documentation conflicts with implementation, report the conflict and follow i
 
 ## Repository locations
 
-- Platform runtime: `ai-customer-support/crates/api/src/flow_engine/`, `ai-customer-support/crates/api/src/agent/`
-- Marketplace apps: `qefro-marketplace-apps/apps/`
-- Validation suite: `qefro-marketplace-apps/tests/test_packages.py`
-- Validation runner: `qefro-marketplace-apps/scripts/validate_apps.py`
+- **Reference apps:** https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps
+- Platform runtime (local): `ai-customer-support/crates/api/src/flow_engine/`, `ai-customer-support/crates/api/src/agent/`
+- Validation suite: [tests/test_packages.py](https://github.com/qefro-ai/qefro-marketplace-apps/blob/main/tests/test_packages.py)
+- Validation runner: [scripts/validate_apps.py](https://github.com/qefro-ai/qefro-marketplace-apps/blob/main/scripts/validate_apps.py)
+- CI pipeline: [.github/workflows/validate.yml](https://github.com/qefro-ai/qefro-marketplace-apps/blob/main/.github/workflows/validate.yml)
+
+When the local `qefro-marketplace-apps/` directory is available, read from it directly. Otherwise, browse or clone the public repository.

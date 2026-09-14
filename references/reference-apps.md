@@ -1,8 +1,18 @@
 # Reference Apps
 
+## Source repository
+
+**https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps**
+
+When the local `qefro-marketplace-apps/` directory is available, read from it directly. Otherwise, browse or clone the public repository:
+
+```bash
+git clone https://github.com/qefro-ai/qefro-marketplace-apps.git
+```
+
 ## Purpose
 
-The `qefro-marketplace-apps/apps/` repository is a **reference implementation corpus**. It demonstrates patterns, not domain logic.
+The [apps/](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps) directory is a **reference implementation corpus**. It demonstrates patterns, not domain logic.
 
 **The runtime/platform contract is authoritative. Reference apps demonstrate patterns. They must NOT be blindly copied.**
 
@@ -10,7 +20,7 @@ The `qefro-marketplace-apps/apps/` repository is a **reference implementation co
 
 When building a new Marketplace App:
 
-1. **Search qefro-marketplace-apps** for the closest 1-3 reference applications
+1. **Browse [apps/](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps)** for the closest 1-3 reference applications
 2. **Identify the underlying Qefro pattern** (not the domain concepts)
 3. **Verify that pattern against the current runtime** (check Rust source)
 4. **Adapt it to the new business domain** (new entity names, new field names)
@@ -20,7 +30,7 @@ When building a new Marketplace App:
 
 ### Entity-heavy applications
 
-**real-estate-pro** -- demonstrates:
+**[real-estate-pro](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps/real-estate-pro)** -- demonstrates:
 - Multiple related entities (property, viewing, lead)
 - Conversational search via choices_from
 - Customer-scoped entities with person_id
@@ -30,7 +40,7 @@ When building a new Marketplace App:
 
 ### Appointment applications
 
-**clinic-pro** -- demonstrates:
+**[clinic-pro](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps/clinic-pro)** -- demonstrates:
 - Appointment workflow with date/time collection
 - choices_from for staff and service selection
 - Patient entity with person_id binding
@@ -40,7 +50,7 @@ When building a new Marketplace App:
 
 ### Booking applications
 
-**appointment** -- demonstrates:
+**[appointment](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps/appointment)** -- demonstrates:
 - Generic appointment scheduling
 - Service + staff member entities
 - Time slot collection via conversation slots
@@ -49,7 +59,7 @@ When building a new Marketplace App:
 
 ### Conversational applications
 
-**restaurant-pro** -- demonstrates:
+**[restaurant-pro](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps/restaurant-pro)** -- demonstrates:
 - Reservation workflow with conversational steps
 - Table management entity
 - Multi-step booking with condition branching
@@ -58,7 +68,7 @@ When building a new Marketplace App:
 
 ### Relation-heavy applications
 
-**education** -- demonstrates:
+**[education](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps/education)** -- demonstrates:
 - Course, enrollment, student entities
 - Many-to-one relations (enrollment -> course)
 - Customer-scoped enrollment with person_id
@@ -67,7 +77,7 @@ When building a new Marketplace App:
 
 ### Customer-scoped applications
 
-**field-service** -- demonstrates:
+**[field-service](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps/field-service)** -- demonstrates:
 - Work order entity with technician relation
 - Site entity for location tracking
 - Customer-scoped work orders
@@ -76,14 +86,14 @@ When building a new Marketplace App:
 
 ### HTTP-backed integrations
 
-**shopify** -- demonstrates:
+**[shopify](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps/shopify)** -- demonstrates:
 - Connection with OAuth metadata
 - HTTP tools with webhook topic mappings
 - Event emission from tool responses
 
 **Pattern value:** How to integrate an external API with OAuth and webhooks.
 
-**stripe** -- demonstrates:
+**[stripe](https://github.com/qefro-ai/qefro-marketplace-apps/tree/main/apps/stripe)** -- demonstrates:
 - Payment integration with bearer auth
 - HTTP tools for charges and subscriptions
 - Webhook HMAC verification

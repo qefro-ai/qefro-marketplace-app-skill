@@ -1,18 +1,25 @@
 # Validation
 
+## Source repository
+
+**https://github.com/qefro-ai/qefro-marketplace-apps**
+
 ## Running the validation suite
 
 ```bash
+# Clone if not available locally:
+git clone https://github.com/qefro-ai/qefro-marketplace-apps.git
+
 # From the qefro-marketplace-apps directory:
-python scripts/validate_apps.py
+python3 scripts/validate_apps.py
 
 # Or directly with pytest:
-cd qefro-marketplace-apps && python -m pytest tests/test_packages.py -v
+cd qefro-marketplace-apps && python3 -m pytest tests/test_packages.py -v
 ```
 
 ## Test suite structure
 
-**File:** `qefro-marketplace-apps/tests/test_packages.py` (~625 lines)
+**File:** [tests/test_packages.py](https://github.com/qefro-ai/qefro-marketplace-apps/blob/main/tests/test_packages.py) (~625 lines)
 
 ### Test classes
 
@@ -75,9 +82,9 @@ For every Marketplace App implementation, verify where applicable:
 
 ## CI pipeline
 
-**File:** `qefro-marketplace-apps/.github/workflows/validate.yml`
+**File:** [.github/workflows/validate.yml](https://github.com/qefro-ai/qefro-marketplace-apps/blob/main/.github/workflows/validate.yml)
 
-Runs `python scripts/validate_apps.py` on push/PR to main.
+Runs `python3 scripts/validate_apps.py` on push/PR to main.
 
 ## Common validation failures
 
