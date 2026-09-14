@@ -235,7 +235,9 @@ permissions:
 
 ## Capability vocabulary
 
-### UI/Host capabilities (manifest `capabilities:` field)
+### Format contract
+
+Capabilities follow `resource.action` dot-notation (e.g., `storage.read`, `workflow.trigger`). The format itself is the contract -- any well-formed `resource.action` token is a valid capability.
 
 ```yaml
 capabilities:
@@ -248,28 +250,15 @@ capabilities:
   - storage.write
 ```
 
-**Publish-gate validation**: the platform validates capabilities against a known set at publish time (`is_known_capability()` in `qefro-plugin-proto`). Unknown capabilities produce a hard error.
+The seven capabilities above are what all current entity-native Marketplace Apps declare. This is the common pattern, not a closed vocabulary.
 
-**Format contract**: UI capabilities follow `resource.action` dot-notation (e.g., `storage.read`, `marketing.write`). The negotiation layer at install time has a catch-all that matches any permission-shaped token, but the publish gate enforces the known set.
+### Negotiation
 
-All current Marketplace Apps declare the same seven capabilities above. This is the canonical set for entity-native apps.
+At install time, `negotiate_capabilities()` intersects what the UI requests with what the installation grants. The negotiation layer handles arbitrary `resource.action` tokens as long as they match a granted permission.
 
-### Agent role capabilities
+### Note on agent capabilities
 
-```yaml
-agent:
-  roles:
-    assistant:
-      capabilities: [orders, customers, knowledge]
-```
-
-**Publish-gate validation**: validated against `KNOWN_AGENT_CAPABILITIES` in solution-service. Agent capabilities must NOT contain `.` or `:` (prevents confusion with RBAC permission grants).
-
-**Runtime mapping**: the runtime maps capability names to a fixed `AgentCapabilityFlags` struct. Domain-specific labels (e.g., `properties`, `leads`) are aliased to generic flags. Unknown names are silently ignored at runtime (but rejected at publish time).
-
-### Capability negotiation
-
-At install time, `negotiate_capabilities()` intersects what the UI requests with what the installation grants. This layer is more permissive than the publish gate -- it handles arbitrary capability strings as long as they match a granted permission.
+Marketplace Apps do NOT declare `agent:` metadata. The Agent layer consumes capabilities already exposed by the Marketplace App through the runtime's entity capability projection and flow-based capabilities. See `agent-integration.md` for how Agent discovers and uses these capabilities automatically.
 
 ## Conversation slot kinds
 
