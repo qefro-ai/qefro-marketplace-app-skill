@@ -1,3 +1,8 @@
+---
+name: qefro-marketplace-app
+description: Design, implement, validate, and audit Qefro Marketplace Apps using Qefro's metadata-first architecture.
+---
+
 # qefro-marketplace-app
 
 Design, implement, validate, and audit Qefro Marketplace Apps using Qefro's metadata-first architecture.
