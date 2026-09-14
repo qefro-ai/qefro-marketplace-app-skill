@@ -54,7 +54,6 @@ Before implementation, answer internally:
 - Do NOT create a second FlowRunner
 - Do NOT create Marketplace-specific dispatchers
 - Do NOT create an Agent-specific Marketplace App framework
-- Do NOT create `agent:` metadata merely to support Agent behavior
 - Do NOT add `if solution == "X"` or `if entity == "Y"` in platform code
 - Do NOT invent field types, flow step types, or API syntax
 - Do NOT allow LLM/user parameters to control tenant, workspace, installation, person identity, or expand
