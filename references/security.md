@@ -25,15 +25,30 @@ Every data row is triple-keyed. All queries enforce triple-scoped filtering.
 
 **File:** `ai-customer-support/crates/api/src/flow_engine/runtime_adapter.rs`
 
-- **Trusted expand**: from flow constants (set by app developer at design time), validated against entity metadata
-- **Untrusted expand**: any expand from LLM/user parameters -- completely stripped
+### Relation field reference vs. expand directive
+
+These are fundamentally different operations:
+
+- **Relation field reference**: setting a foreign key value in create/update parameters (e.g., `{"property_id": "APT-1001"}`). The LLM can supply these (after authority stripping). This is the data layer.
+- **Expand directive**: an execution control (`expand: {"property_id": "property"}`) telling storage to dereference/join the relation and return related data inline. This is the read-layer. Only flow constants may supply this.
+
+### Source authority, not content correctness
+
+**The trust boundary is about source authority, not content correctness.** Even a perfectly correct expand from the LLM is silently discarded because it comes from an untrusted source.
+
+- **Trusted expand**: from `step.config.constants.expand` (admin-authored flow definition, never touched by LLM)
+- **Untrusted expand**: any expand from LLM/user parameters -- completely stripped regardless of correctness
 
 `apply_expand_trust_boundary()`:
-1. Strips `expand` from untrusted parameters entirely
+1. Strips `expand` from untrusted parameters entirely (`doc.remove("expand")`)
 2. Takes trusted expand from flow constants
 3. Validates against entity metadata via `validate_expand()`
-4. Each field must be a declared relation, target must match `ref_entity`
-5. Fail-closed: any invalid entry rejects the entire expand map
+4. Each field must be a declared `type: relation`, target must match `ref_entity`
+5. Fail-closed: any invalid entry rejects the entire expand map; missing metadata rejects all expand
+
+### Dedicated extraction path
+
+Expand is extracted directly from `step.config.constants.expand` in `steps.rs`, bypassing the general `input_map` mechanism. This is a deliberate architectural choice -- expand is treated as a first-class security concern, not just another input parameter.
 
 ## Customer identity injection (C1 contract)
 

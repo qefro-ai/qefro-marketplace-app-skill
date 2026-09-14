@@ -54,8 +54,9 @@ pub struct FlowTurnReply {
 
 **File:** `ai-customer-support/crates/api/src/flow_engine/mod.rs`
 
-- `try_advance_or_start()` -- the chat loop: tries to advance existing flow or starts new one
+- `try_advance_or_start()` -- the chat loop: if active execution exists, feeds message into it; otherwise selects new flow via catalog (cosine similarity >= 0.82 threshold)
 - `start_flow_from_facade()` -- handles conversation uniqueness, creates FlowExecution rows, seeds variables from durable conversation memory
+- One-active-flow enforced by partial unique index (see C5 contract below)
 - Redis active-execution cache with 30-day TTL
 
 ## ExecutionAdapter
@@ -107,6 +108,27 @@ Operations: `create|insert`, `list|find`, `get`, `update`, `delete|cancel`
 2. Coerce limit/skip to positive integers (C2 contract)
 3. Wrap filter values in case-insensitive regex
 
+**C2 contract -- typed parameter coercion:**
+
+The adapter performs **deliberately minimal** type coercion. Only `limit` and `skip` on list operations are coerced via `coerce_positive_int()`:
+
+```rust
+fn coerce_positive_int(v: &Value) -> Option<i64> {
+    match v {
+        Value::Number(n) => n.as_i64(),
+        Value::String(s) => s.trim().parse::<i64>().ok(),
+        _ => None,
+    }
+    .filter(|&n| n > 0)
+}
+```
+
+- Accepts: integers, numeric strings (whitespace-trimmed)
+- Rejects: floats (even `10.0`), zero, negatives, non-numeric, booleans
+- On failure: silent fallback (limit defaults to 50, skip omitted)
+
+**No general field-type-driven coercion exists.** Entity document field values (the business data the LLM provides for create/update) pass through as raw JSON to the storage service. The adapter performs structural transformations (person-id injection, datetime synthesis, relation resolution, authority stripping) but does NOT inspect declared field types (integer, float, boolean) to coerce values.
+
 **Get:**
 1. Resolve human-readable references to UUIDs via `resolve_reference_to_uuid()`
 2. Support expand (with trust boundary)
@@ -143,6 +165,95 @@ Operations: `create|insert`, `list|find`, `get`, `update`, `delete|cancel`
 During message matching (`apply_trigger`):
 - `match_step_choices()` handles tap targets (exact value matches)
 - `normalize_ask_reply()` handles relative dates, time parsing, prefix:value chip matching
+
+## Expand trust boundary (C3 contract)
+
+**File:** `ai-customer-support/crates/api/src/flow_engine/runtime_adapter.rs`
+
+### Two distinct concepts
+
+| Concept | What it is | Who controls it |
+|---------|-----------|----------------|
+| **Relation field reference** | Setting a foreign key value (e.g., `{"traveler": "some_uuid"}`) in create/update | LLM can supply (after authority stripping) |
+| **Expand directive** | Execution control telling storage to dereference/join a relation and return related data inline | Flow constants ONLY |
+
+### The trust rule
+
+**Source authority matters, not content correctness.** Even a perfectly correct expand from the LLM is silently discarded.
+
+`apply_expand_trust_boundary()`:
+1. `strip_authority_overrides()` removes forbidden keys from parameters
+2. `doc.remove("expand")` -- unconditionally strips ANY expand from untrusted parameters
+3. If `trusted_expand` exists (from `step.config.constants.expand`):
+   - Validates each key is a declared `type: relation` field
+   - Validates each value matches the field's declared `ref_entity`
+   - Fail-closed: rejects entire expand if entity metadata unavailable
+4. Returns `(cleaned_document, validated_expand_map, optional_error)`
+
+### Extraction path
+
+Expand has its own dedicated extraction from `step.config.constants.expand` in `steps.rs`, bypassing the general `input_map` mechanism. This is a deliberate architectural choice -- expand is treated as a first-class security concern.
+
+### Validation rules (fail-closed)
+
+- Must be a JSON object
+- Empty expand `{}` accepted even on entities with no relations
+- Each key must be a field declared with `type: relation` in entity metadata
+- Each value must be a non-empty string matching the field's `ref_entity`
+- Any single invalid entry rejects the entire expand map
+- If entity metadata is unavailable, operation fails entirely
+
+### Where validated expand is applied
+
+Only read operations receive expand:
+- **LIST**: injected into `build_list_body()`
+- **GET**: injected into request body
+- **CREATE/UPDATE/DELETE**: no expand
+
+## Flow execution lifecycle and routing (C5 contract)
+
+### One-active-flow-per-conversation
+
+The platform enforces a strict one-active-flow model. **Flows cannot be superseded or replaced.** A new flow starts only when no active execution exists.
+
+**Database constraint** (partial unique index):
+```sql
+CREATE UNIQUE INDEX uq_flow_executions_active_conversation
+    ON flow_executions (conversation_id)
+    WHERE status NOT IN ('completed', 'failed', 'cancelled');
+```
+
+### Flow execution states
+
+```rust
+pub enum FlowExecutionStatus {
+    Pending, Running,                        // actively executing
+    WaitingForInput, WaitingForUpload,       // suspended pending user action
+    WaitingForApproval, WaitingForChallenge, // suspended pending external event
+    Paused,                                  // suspended (delay)
+    Completed, Failed, Cancelled,            // terminal states
+}
+```
+
+- **Terminal**: `Completed | Failed | Cancelled` -- no further transitions
+- **Waiting**: `WaitingForInput | WaitingForUpload | WaitingForApproval | WaitingForChallenge | Paused`
+- **Active**: anything non-terminal (blocks new flows)
+
+### Routing decision: `try_advance_or_start()`
+
+**File:** `ai-customer-support/crates/api/src/flow_engine/mod.rs`
+
+1. **If active execution exists**: feed message into existing flow (no new flow starts)
+   - Exception: `WaitingForChallenge` returns to normal LLM path
+2. **If no active execution**: attempt flow selection via catalog
+   - Cosine similarity scoring against flow intent embeddings
+   - `FLOW_SELECT_MIN_SCORE = 0.82` (conservative threshold)
+   - Below threshold: no flow selected, turn falls through to LLM/tool path
+3. **Safety net**: `create_execution` catches unique-index violation from concurrent turns, defers to LLM path
+
+### Key implication for Marketplace Apps
+
+A flow that is `WaitingForInput` will continue to receive all messages on that conversation until it reaches a terminal state. New flows cannot interrupt or replace it. The 0.82 threshold governs whether a new flow starts at all (after the current one completes), not whether it replaces an existing one.
 
 ## input_map resolution
 

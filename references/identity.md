@@ -87,17 +87,92 @@ Before invoking an SDK tool, the runtime loads a Person snapshot:
 - `load_sdk_person_snapshot()` -- falls back from `auth_person_id` -> conversation.person_id -> None
 - `build_sdk_person_snapshot()` -- Identity kind (minimal) or full kind (with status, attributes, tags, activities)
 
-## Customer-scoped entity contract (C1)
+## Ownership and visibility contract (C1)
 
-An entity is customer-scoped when it has BOTH:
-1. `scope: customer` in entity YAML
-2. A field with `type: person` and `ref_entity: person`
+### Three-tier visibility model
 
-When customer-scoped:
-- Runtime injects `person_id` from authenticated session
-- List operations automatically filter to the current person's records
-- Create operations automatically bind to the current person
-- Apps never supply person_id in parameters
+| Tier | Condition | Customer channels | Portal channel |
+|------|-----------|-------------------|----------------|
+| **Customer-scoped** | `scope: customer` + `type: person` field | person_id injected/filtered; fail-closed without identity | Bypass — sees all workspace records |
+| **Shared/Default** | No `scope: customer` declaration | No person filter; visible to all | No person filter |
+| **Staff/Default** | No `scope: customer` (even with person fields) | No person filter | No person filter |
+
+The model is binary at the metadata level (`scope: customer` vs absent) with a runtime bifurcation based on identity channel.
+
+### Detection function
+
+**File:** `ai-customer-support/crates/api/src/flow_engine/runtime_adapter.rs`
+
+`entity_person_field()` returns `Some(field_name)` only when BOTH conditions are met:
+1. Entity declares `scope: customer`
+2. Entity has at least one field with `type: person`
+
+Returns `None` for entities without `scope: customer`, even if they have `type: person` fields.
+
+### Portal bypass
+
+Portal users (business owners, `IdentityChannel::Portal`) bypass person-scoping entirely — they manage all workspace records. The check:
+
+```rust
+let is_portal = auth_ctx.verified_identity
+    .as_ref()
+    .map(|vi| matches!(vi.channel, domain::IdentityChannel::Portal))
+    .unwrap_or(false);
+```
+
+When `is_portal` is true, person_id injection and filtering are skipped.
+
+### Entity scope in Agent capability projection
+
+**File:** `ai-customer-support/crates/api/src/agent/entity_capabilities.rs`
+
+```rust
+pub enum EntityScope {
+    Default,   // Staff/admin-scoped
+    Customer,  // Runtime injects person_id filtering
+}
+```
+
+Parsed case-insensitively from entity metadata `scope` field. Defaults to `Default` when absent.
+
+### HTTP tool ownership (response-level filtering)
+
+**File:** `ai-customer-support/crates/api/src/flow_engine/http_policy.rs`
+
+For HTTP-backed tools, a separate ownership spec filters response records post-hoc:
+
+```yaml
+ownership:
+  identity: person.email          # which identity value to compare
+  paths: [email, customer.email]  # which record fields to match against
+  also:                           # additional OR clauses
+    - identity: person.phone
+      paths: [phone_number]
+```
+
+`apply_ownership()` filters list responses to only records owned by the caller. Identity values come from `HttpIdentityBindings` (server-resolved from Customer Hub, never from LLM). Phone matching uses digit-only comparison.
+
+### Surface enforcement (ToolSurface)
+
+```rust
+pub enum ToolSurface {
+    Staff,     // Portal
+    Customer,  // WhatsApp, Widget, API
+}
+```
+
+Tools declare allowed surfaces in metadata: `{ "surfaces": ["customer"] }`. Empty/missing means allowed everywhere (backward compatible).
+
+### Installation-scoped App RBAC
+
+**File:** `ai-customer-support/crates/api/src/app_rbac_authz.rs`
+
+Additional authorization layer on top of ownership:
+- Applies only to Portal staff and API callers with portal user UUIDs
+- WhatsApp/Widget customer channels bypass app RBAC (they use C1 person-scoping)
+- Requires a non-nil `installation_id`
+- Checks `{entity}.{view|create|update|delete}` permissions
+- Fail-closed: if RBAC catalog cannot be loaded, permissions default to empty
 
 ## Identity in conversation variables
 
