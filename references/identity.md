@@ -77,9 +77,11 @@ Unique constraint: `(tenant_id, workspace_id, channel, identifier)`
 In `runtime_adapter.rs` `execute_storage()`:
 
 1. Check if entity has `scope: customer` + `type: person` field (C1 contract)
-2. If customer-scoped: inject `person_id` from `auth_ctx.person_id`
-3. Fail closed: if identity is missing, reject the operation
-4. Auto-fill customer name fields from Person record
+2. If customer-scoped on a customer channel: inject `person_id` from `auth_ctx.person_id`
+3. Fail closed: if identity is missing on a customer channel, reject the operation
+4. Portal/staff API: caller may select an existing Hub Person; runtime stores it
+   only after tenant+workspace Hub lookup. LLM/agent payloads are still stripped.
+5. Auto-fill customer name fields from Person record
 
 ### SDK tool injection
 
