@@ -97,3 +97,16 @@ If documentation conflicts with implementation, report the conflict and follow i
 - CI pipeline: [.github/workflows/validate.yml](https://github.com/qefro-ai/qefro-marketplace-apps/blob/main/.github/workflows/validate.yml)
 
 When the local `qefro-marketplace-apps/` directory is available, read from it directly. Otherwise, browse or clone the public repository.
+
+## Automation Templates
+
+Marketplace Apps may declare `automation_templates` in `manifest.yaml`. Templates are **presets** for the existing CRM Automation engine.
+
+- CRM UI discovers **only that workspace’s installed app templates**.
+- [Use Template] instantiates a normal `CrmAutomation`. Templates are not executable.
+- `send_webhook` templates may include `payload_mapping` only. Never URL, secret, headers, or `connection_id` in YAML. The workspace owns the outbound connection.
+- Validate fail-closed against declared events, CRM action types, entity fields, and forbidden authority/secret keys.
+- Upgrading the app must not mutate already-created automations.
+- Do not invent TemplateEngine2, FlowRunner2, WebhookEngine, Agent/Goal templates, JS/CEL, or `if solution ==` UI.
+
+See [Metadata contract](references/metadata-contract.md) for the schema.

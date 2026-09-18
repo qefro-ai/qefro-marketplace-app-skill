@@ -16,7 +16,7 @@ Every data row is triple-keyed. All queries enforce triple-scoped filtering.
 
 `strip_authority_overrides()` removes ALL these keys plus `"context"` from LLM/user-supplied parameters before runtime processing. Called on every tool invocation.
 
-`person_id` is stripped from untrusted input so the LLM cannot invent Hub ids. Portal/staff API may re-stamp a declared `type: person` field only after Hub lookup proves the Person exists in this tenant+workspace. That is a scoped relation bind, not caller-controlled authority.
+`person_id` is stripped from untrusted input so the LLM cannot invent Hub ids. Portal/staff API may re-stamp a declared `type: person` field only after Hub lookup proves the Person exists in this tenant. Customer Hub is tenant-global — not workspace-bound. That is a scoped relation bind, not caller-controlled authority.
 
 **Defense in depth:**
 1. Schema stripping -- authority fields removed from LLM tool definitions (LLM never sees them)

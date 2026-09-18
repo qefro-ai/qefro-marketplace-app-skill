@@ -20,6 +20,20 @@ channels: [widget, whatsapp]    # supported channels
 entities: [<entity-ids>]
 flows: [<flow-ids>]
 events: [<dot-notation names>]  # e.g. ["appointment.created", "appointment.cancelled"]
+
+# Optional CRM Automation presets (not executable). Instantiating one
+# creates a normal existing CrmAutomation in that workspace. Never put
+# URLs, secrets, headers, or connection_id here. send_webhook templates
+# may declare payload_mapping only; the workspace picks the destination.
+automation_templates:
+  - id: <kebab_or_snake_id>
+    name: <display name>
+    description: <string>
+    trigger:
+      event: <declared event>
+    actions:
+      - type: create_followup|notify_team|send_webhook|...  # CRM AutomationAction vocabulary
+        # existing action fields only
 permissions: [workflow.execute, storage.read, storage.write, storage.update, storage.delete]
 capabilities: [theme.get, user.get, tenant.get, runtime.query, workflow.trigger, storage.read, storage.write]
 
@@ -238,12 +252,12 @@ concurrency: optimistic          # alias: optimistic: true
 # optimistic checks; they are stripped from the stored document and must not
 # overwrite the stamped version on the response.
 #
-# person_id is a scoped Hub relation, not a spoofable authority key.
+# person_id is a tenant-global Hub relation, not a spoofable authority key.
 # LLM/agent payloads still strip it. Staff/API may select an existing Person
-# only after Hub lookup proves the id exists in THIS tenant+workspace.
+# only after Hub lookup proves the id exists in THIS tenant (any workspace).
 # Customer channels inject session identity (self only). Event-triggered
 # create may copy it via inherit_from. CSV resolves via PersonService.
-# Cross-workspace, nonexistent, and nil ids are rejected. Tenant/workspace
+# Cross-tenant, nonexistent, and nil ids are rejected. Tenant/workspace
 # spoofing remains impossible.
 ```
 
@@ -266,6 +280,53 @@ concurrency: optimistic          # alias: optimistic: true
 | `person` | Hub identity link | Always has `ref_entity: person` |
 | `relation` | Cross-entity reference | Has `ref_entity: <target>` |
 | `image` | Image URL | |
+| `media` | Image list | Same host as `image`; `multiple` / `max_items` |
+| `textarea` / `text_long` | Long text | UI alias for multi-line `string` |
+
+Hosts render by **canonical `type`** (`enum_values`, `ref_entity`, `multiple`). They must not infer widgets from field names (`property_title`, `image_url`, `patient_name`) or ship domain enum lists. Computed specs stay server-side: if a field is listed under entity `computed:` or `computed: true`, the UI shows the **server-provided value** readonly.
+
+Optional UI-only hints (passthrough, ignored by the runtime if unknown): `readonly`, `placeholder`, `help`, `section`, `label`, `title_field`, `display_field`, `format` (`currency` for money display). Hosts must not infer currency from field names (`price`, `rent`) or geography (`Chennai` → INR).
+
+### Presentation metadata V1
+
+Presentation is **not** authorization. It never creates capabilities, bypasses permissions, or changes FlowRunner/storage semantics.
+
+Declared list views stay on the entity (`views: [{ type: table|tile|... }]`). Do **not** duplicate that as `ui.list.views` or `display_mode`.
+
+Optional `entity.ui` (package YAML + workspace `_ui_customization` overlay, merged; unknown IDs ignored):
+
+```yaml
+ui:
+  style: modern          # visual-only: modern | classic | compact
+  list:
+    columns: [<field>]
+    sort: { <field>: asc|desc }
+    filter: { <field>: <scalar> }
+    default_view: tile   # must already be in entity.views
+    empty_state:
+      title: <string>
+      description: <string>
+      action_label: <string>
+  detail:
+    layout: split        # stack | split
+    hero:
+      title_field: <field>
+      subtitle_field: <field>
+      status_field: <field>
+      image_field: <image|media field>
+    metrics: [<field>]   # max 6; CanonicalField display
+    hidden: [<field>]
+    order: [<field>]
+    sections:
+      - title: <string>
+        fields: [<field>]
+    related:
+      order: [<entity_id>]
+      hidden: [<entity_id>]
+    activity: true
+```
+
+Stale field/entity IDs are dropped. Overlay cannot invent views, fields, or workflows.
 
 ### Person field contract
 
@@ -286,8 +347,9 @@ How it is bound:
   authenticated Hub session (self only). Caller/LLM values are ignored.
 - **Portal / staff API**: caller MAY select an existing Hub Person. Runtime
   accepts the id only after storage/Hub lookup proves the Person exists in
-  THIS tenant+workspace. Cross-workspace, nonexistent, and arbitrary ids are
-  rejected. Tenant spoofing remains impossible.
+  THIS tenant (any workspace). Customer Hub is tenant-global, not workspace-bound.
+  Cross-tenant, nonexistent, and arbitrary ids are rejected. Tenant spoofing
+  remains impossible.
 - **CSV**: PersonService resolves identity from phone/email (never a CSV
   `person_id` column).
 - **Agent / LLM**: tool schemas omit `person_id`; `strip_authority_overrides`
@@ -354,7 +416,7 @@ Dispatch (same Postgres event bus + FlowRunner as conversation/schedule — not 
 2. CRM Automation and Goal Engine observe the same event (not merged into this path).
 3. Resolution is workspace-scoped: only installed, enabled flows whose `trigger.event` equals the envelope name. No tenant-wide Marketplace scan. SDK event flows remain a separate subscriber path (priority unchanged).
 4. FlowRunner starts with trusted refs: `event.id`, `event.name`, `entity`, `record_id` / `id`. The flow loads the record with `entity.*.get` — the full document is not auto-injected. Tenant comes from the record/envelope; workspace from trusted top-level `workspace_id`. Event facts are trusted.
-5. Payload cannot override tenant, workspace, actor, or installation. `person_id` is a scoped Hub relation: customer channels inject session identity; staff/API may select an existing workspace Person after Hub lookup; event-triggered `entity.*.create` may copy `person_id` from a related record via field `inherit_from` after authority strip — never from payload/LLM.
+5. Payload cannot override tenant, workspace, actor, or installation. `person_id` is a tenant-global Hub relation: customer channels inject session identity; staff/API may select an existing tenant Person after Hub lookup; event-triggered `entity.*.create` may copy `person_id` from a related record via field `inherit_from` after authority strip — never from payload/LLM.
 6. Idempotency is `event_id + flow_id` (system conversation session). Same pair at most once while Completed; different events are independent. Bus idempotency remains authoritative for delivery.
 7. FlowRunner failure NACKs the bus event (existing retry/dead-letter). Status lookup error, a missing execution row, or explicit `Failed` are not success. Catalog unavailable NACKs (retry). Empty installed set (no matching flows) ACKs. Success, no-op, and already-idempotent complete ACK.
 8. Recursion: child emits from a flow mutation — including computed rollup, `on_events` related updates, and CSV hydrate when those run under an event-triggered flow — inherit `EventLineage` (`causation_event_id` + `depth`+1). Date-watch ticks remain depth-0 roots. Default max depth is 8 on the bus. This is loop protection, not a workflow graph.
@@ -506,6 +568,41 @@ Runtime entity operations: `entity.{name}.{create|list|get|update|delete|restore
 `aggregate` is read-only (`op: count|sum`) and is projected to Business Agent automatically.
 `restore` requires update permission and `storage.update`. Soft delete uses `storage.update`;
 hard/restrict delete uses `storage.delete`.
+
+## Automation Templates
+
+Installed Marketplace Apps may declare `automation_templates` in `manifest.yaml`. These are **presets** for existing CRM Automations (WHEN + IF + THEN). They are not executable, not a second engine, and not Agent/Goal templates.
+
+```yaml
+automation_templates:
+  - id: overdue_invoice_reminder
+    name: Remind customers about overdue invoices
+    description: Create a follow-up when an invoice becomes overdue.
+    trigger:
+      event: invoice.overdue          # must be in manifest.events
+    actions:
+      - type: create_followup         # CRM AutomationAction vocabulary only
+        due_in_hours: 24
+        note: Collect payment on an overdue invoice
+  - id: send_invoice_created_webhook
+    name: Send invoice-created to my system
+    trigger:
+      event: invoice.created
+    actions:
+      - type: send_webhook
+        payload_mapping:              # mapping only — never URL/secret/headers
+          - output_key: invoice_number
+            event_parameter: invoice.invoice_number
+```
+
+Rules:
+
+- CRM discovers templates from **this workspace's installed app only** (one app per workspace).
+- Selecting a template instantiates a normal `CrmAutomation`. Multiple instances of the same template are allowed and independent.
+- Upgrading the app does **not** mutate already-created automations.
+- Fail closed: unknown ids/events/action types, authority fields (`tenant_id`, `workspace_id`, `installation_id`, `person_id`, `customer_id`), secrets, URLs, `Authorization`, and executable code are rejected. Invalid templates must not create partial automations.
+- `send_webhook` templates must not include destination URL, signing secret, headers, or `connection_id`. The workspace picks an outbound connection at instantiate/edit time.
+- Do not add TemplateEngine2, FlowRunner2, WebhookEngine, JS/CEL, or cross-app aggregation.
 
 ## Conversation slot kinds
 

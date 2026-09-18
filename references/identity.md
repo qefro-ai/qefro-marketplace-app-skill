@@ -79,8 +79,9 @@ In `runtime_adapter.rs` `execute_storage()`:
 1. Check if entity has `scope: customer` + `type: person` field (C1 contract)
 2. If customer-scoped on a customer channel: inject `person_id` from `auth_ctx.person_id`
 3. Fail closed: if identity is missing on a customer channel, reject the operation
-4. Portal/staff API: caller may select an existing Hub Person; runtime stores it
-   only after tenant+workspace Hub lookup. LLM/agent payloads are still stripped.
+4. Portal/staff API: caller may select an existing Hub Person from the
+   tenant-global Customer Hub; runtime stores it only after tenant Hub lookup
+   (not workspace-filtered). LLM/agent payloads are still stripped.
 5. Auto-fill customer name fields from Person record
 
 ### SDK tool injection
@@ -200,6 +201,14 @@ Maps Person to external business customer IDs. Unique constraints enable bidirec
 - Precedence: verified identity -> conversation vars -> tool input -> ask user
 - `customer_id` must NOT be person UUID or phone number (validated via `domain::usable_external_customer_id()`)
 
+## Tenant-global Customer Hub
+
+Customer Hub People are **tenant-scoped, not workspace-bound**. Every Marketplace
+App inside a tenant shares one Hub. POS, invoice `type: person` pickers, and
+`host: contacts` list/create against that tenant Hub (omit `workspaceId` on
+`people`). `Person.workspace_id` records the originating workspace for channel
+identity uniqueness; it is not a visibility boundary for marketplace apps.
+
 ## Rules for Marketplace Apps
 
 1. Do NOT create a second identity system inside a Marketplace App
@@ -208,3 +217,4 @@ Maps Person to external business customer IDs. Unique constraints enable bidirec
 4. Use `type: person` + `ref_entity: person` for customer identity binding
 5. Use `scope: customer` for customer-facing entities
 6. Trust the runtime to inject person_id automatically
+7. Do NOT filter Hub People by workspace when listing or binding in marketplace apps
